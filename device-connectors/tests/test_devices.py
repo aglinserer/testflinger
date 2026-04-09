@@ -222,6 +222,25 @@ class TestPreProvisionHook:
 
         mock_power_cycle.assert_called_once()
 
+    def test_skipped_when_env_var_set(self, mocker, monkeypatch):
+        """Test hook skips power cycle when env var is set."""
+        monkeypatch.setenv("DISABLE_CONTROL_HOST_POWERCYCLE", "1")
+        mocker.patch("builtins.open", mocker.mock_open())
+        mock_power_cycle = mocker.patch.object(
+            DefaultControlHost, "power_cycle"
+        )
+        device = DefaultDevice(
+            {
+                "device_ip": "1.1.1.1",
+                "control_host": "control-host",
+                "control_host_reboot_script": ["reboot-cmd"],
+            }
+        )
+
+        device.pre_provision_hook()
+
+        mock_power_cycle.assert_not_called()
+
 
 class TestDefaultControlHostPowerCycle:
     """Tests for DefaultControlHost.power_cycle and ssh_fallback."""

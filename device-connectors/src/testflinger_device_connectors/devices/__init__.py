@@ -609,6 +609,13 @@ class DefaultDevice:
 
     def pre_provision_hook(self):
         """Power cycle the control host before provisioning."""
+        if os.environ.get("DISABLE_CONTROL_HOST_POWERCYCLE"):
+            logger.info(
+                "Skipping control host power cycle "
+                "(DISABLE_CONTROL_HOST_POWERCYCLE is set)."
+            )
+            return
+
         control_host: str = str(self.config.get("control_host", ""))
         if not control_host:
             logger.debug("No control host configured for this agent.")
