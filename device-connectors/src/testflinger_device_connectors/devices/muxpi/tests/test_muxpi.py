@@ -18,8 +18,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from testflinger_device_connectors.devices import ProvisioningError
-from testflinger_device_connectors.devices import DefaultControlHost
+from testflinger_device_connectors.devices import (
+    DefaultControlHost,
+    ProvisioningError,
+)
 from testflinger_device_connectors.devices.muxpi import DeviceConnector
 from testflinger_device_connectors.devices.muxpi.muxpi import MuxPi
 
