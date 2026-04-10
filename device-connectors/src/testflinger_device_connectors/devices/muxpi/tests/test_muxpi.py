@@ -18,8 +18,29 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from testflinger_device_connectors.devices import ProvisioningError
+from testflinger_device_connectors.devices import (
+    DefaultControlHost,
+    ProvisioningError,
+)
+from testflinger_device_connectors.devices.muxpi import DeviceConnector
 from testflinger_device_connectors.devices.muxpi.muxpi import MuxPi
+
+
+def test_pre_provision_hook_is_noop(mocker):
+    """Test that muxpi skips the control host power cycle."""
+    mocker.patch("builtins.open", mocker.mock_open())
+    mock_power_cycle = mocker.patch.object(DefaultControlHost, "power_cycle")
+    device = DeviceConnector(
+        {
+            "device_ip": "1.1.1.1",
+            "control_host": "control-host",
+            "control_host_reboot_script": ["reboot-cmd"],
+        }
+    )
+
+    device.pre_provision_hook()
+
+    mock_power_cycle.assert_not_called()
 
 
 def test_check_ce_oem_iot_image(mocker):
