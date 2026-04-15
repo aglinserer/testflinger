@@ -1436,6 +1436,408 @@ def test_agent_status_json(capsys, requests_mock):
     assert std.out.strip() == json.dumps(expected_out, sort_keys=True)
 
 
+def test_agent_list_names_only(capsys, requests_mock):
+    """Validate list-agents -1 returns agent names only."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent2",
+            "state": "offline",
+            "queues": ["queue1"],
+            "comment": "Offline reason",
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "-1"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent1\n" in std.out
+    assert "agent2\n" in std.out
+
+
+def test_agent_list_summary(capsys, requests_mock):
+    """Validate list-agents --summary shows counts."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent2",
+            "state": "offline",
+            "queues": ["queue1"],
+            "comment": "Offline reason",
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "--summary"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    # Remove ANSI codes for assertion
+    import re
+
+    clean_out = re.sub(r"\x1b\[[0-9;]*m", "", std.out)
+    assert "Online:" in clean_out and "1" in clean_out
+    assert "waiting" in clean_out
+    assert "Offline:" in clean_out and "1" in clean_out
+    assert "offline" in clean_out
+
+
+def test_agent_list_mutually_exclusive_1_and_summary(requests_mock):
+    """Validate list-agents -1 and --summary are mutually exclusive."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "-1", "--summary"]
+    with pytest.raises(SystemExit):
+        testflinger_cli.TestflingerCli()
+
+
+def test_agent_list_fields_not_applicable_with_1(requests_mock):
+    """Validate list-agents --fields is not applicable with -1."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "-1", "--fields", "name,status"]
+    with pytest.raises(SystemExit):
+        testflinger_cli.TestflingerCli()
+
+
+def test_agent_list_fields_not_applicable_with_summary(requests_mock):
+    """Validate list-agents --fields is not applicable with --summary."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "--summary", "--fields", "name,status"]
+    with pytest.raises(SystemExit):
+        testflinger_cli.TestflingerCli()
+
+
+def test_agent_list_table(capsys, requests_mock):
+    """Validate list-agents default shows table format."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+            "job_id": "job123",
+        },
+        {
+            "name": "agent2",
+            "state": "offline",
+            "queues": ["queue1"],
+            "comment": "Under maintenance",
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    # Remove ANSI codes for assertion
+    import re
+
+    clean_out = re.sub(r"\x1b\[[0-9;]*m", "", std.out)
+    assert "agent1" in clean_out
+    assert "waiting" in clean_out
+    assert "agent2" in clean_out
+    assert "offline" in clean_out
+    assert "Under maintenance" in clean_out
+    assert "NAME" in clean_out  # Header
+    assert "STATUS" in clean_out  # Header
+
+
+def test_agent_list_filter_by_status(capsys, requests_mock):
+    """Validate list-agents --filter-status filters agents."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent2",
+            "state": "offline",
+            "queues": ["queue1"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "--filter-status", "offline"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent2" in std.out
+    assert "agent1" not in std.out
+
+
+def test_agent_list_filter_by_multiple_statuses(capsys, requests_mock):
+    """Validate list-agents --filter-status with comma-separated values."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent2",
+            "state": "offline",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent3",
+            "state": "setup",
+            "queues": ["queue1"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = [
+        "",
+        "list-agents",
+        "--filter-status",
+        "offline,waiting",
+    ]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent1" in std.out
+    assert "agent2" in std.out
+    assert "agent3" not in std.out
+
+
+def test_agent_list_filter_status_exclude(capsys, requests_mock):
+    """Validate list-agents --filter-status with exclusion (^ prefix)."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent2",
+            "state": "setup",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent3",
+            "state": "offline",
+            "queues": ["queue1"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = [
+        "",
+        "list-agents",
+        "--filter-status",
+        "online,^waiting",
+    ]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent1" not in std.out
+    assert "agent2" in std.out
+    assert "agent3" not in std.out
+
+
+def test_agent_list_filter_status_exclude_only(capsys, requests_mock):
+    """Validate list-agents --filter-status with only exclusion."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent2",
+            "state": "setup",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent3",
+            "state": "offline",
+            "queues": ["queue1"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = [
+        "",
+        "list-agents",
+        "--filter-status",
+        "^offline",
+    ]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent1" in std.out
+    assert "agent2" in std.out
+    assert "agent3" not in std.out
+
+
+def test_agent_list_filter_by_queue(capsys, requests_mock):
+    """Validate list-agents --filter-queue filters agents by queue."""
+    fake_agents = [
+        {
+            "name": "agent1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent2",
+            "state": "waiting",
+            "queues": ["queue2"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "--filter-queues", "queue1"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent1" in std.out
+    assert "agent2" not in std.out
+
+
+def test_agent_list_filter_by_name_pattern(capsys, requests_mock):
+    """Validate list-agents --filter-agent filters agents by regex."""
+    fake_agents = [
+        {
+            "name": "agent-prod-1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent-dev-1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent-test-1",
+            "state": "waiting",
+            "queues": ["queue2"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = ["", "list-agents", "--filter-name", "prod|dev"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent-prod-1" in std.out
+    assert "agent-dev-1" in std.out
+    assert "agent-test-1" not in std.out
+
+
+def test_agent_list_combined_filters(capsys, requests_mock):
+    """Validate list-agents with multiple filters combined."""
+    fake_agents = [
+        {
+            "name": "agent-prod-1",
+            "state": "waiting",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent-prod-2",
+            "state": "offline",
+            "queues": ["queue1"],
+        },
+        {
+            "name": "agent-dev-1",
+            "state": "waiting",
+            "queues": ["queue2"],
+        },
+    ]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    sys.argv = [
+        "",
+        "list-agents",
+        "--filter-queue",
+        "queue1",
+        "--filter-status",
+        "offline",
+    ]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    std = capsys.readouterr()
+    assert "agent-prod-2" in std.out
+    assert "agent-prod-1" not in std.out
+    assert "agent-dev-1" not in std.out
+
+
+def test_agent_list_mutually_exclusive_flags(requests_mock):
+    """Validate list-agents rejects -1 and --summary together."""
+    requests_mock.get(f"{URL}/v1/agents/data", json=[])
+    sys.argv = ["", "list-agents", "-1", "--summary"]
+    with pytest.raises(SystemExit):
+        testflinger_cli.TestflingerCli()
+
+
+@patch.object(testflinger_cli.TestflingerCli, "_print_agent_names")
+@patch.object(testflinger_cli.TestflingerCli, "_filter_agents")
+def test_agent_list_calls_print_names(
+    mock_filter_agents, mock_print_names, requests_mock
+):
+    """Validate -1 flag calls _print_agent_names."""
+    fake_agents = [{"name": "agent1", "state": "waiting"}]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    mock_filter_agents.return_value = fake_agents
+    sys.argv = ["", "list-agents", "-1"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    mock_filter_agents.assert_called_once_with(fake_agents)
+    mock_print_names.assert_called_once_with(fake_agents)
+
+
+@patch.object(testflinger_cli.TestflingerCli, "_print_agent_summary")
+@patch.object(testflinger_cli.TestflingerCli, "_filter_agents")
+def test_agent_list_calls_print_summary(
+    mock_filter_agents, mock_print_summary, requests_mock
+):
+    """Validate --summary flag calls _print_agent_summary."""
+    fake_agents = [{"name": "agent1", "state": "waiting"}]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    mock_filter_agents.return_value = fake_agents
+    sys.argv = ["", "list-agents", "--summary"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    mock_filter_agents.assert_called_once_with(fake_agents)
+    mock_print_summary.assert_called_once_with(fake_agents)
+
+
+@patch.object(testflinger_cli.TestflingerCli, "_print_agent_table")
+@patch.object(testflinger_cli.TestflingerCli, "_filter_agents")
+def test_agent_list_calls_print_table(
+    mock_filter_agents, mock_print_table, requests_mock
+):
+    """Validate default call uses _print_agent_table."""
+    fake_agents = [{"name": "agent1", "state": "waiting"}]
+    requests_mock.get(f"{URL}/v1/agents/data", json=fake_agents)
+    mock_filter_agents.return_value = fake_agents
+    sys.argv = ["", "list-agents"]
+    tfcli = testflinger_cli.TestflingerCli()
+    tfcli.list_agents()
+    mock_filter_agents.assert_called_once_with(fake_agents)
+    mock_print_table.assert_called_once_with(fake_agents)
+
+
 def test_queue_status(capsys, requests_mock, auth_fixture):
     """Validate that the status for the queue is retrieved."""
     auth_fixture("user")

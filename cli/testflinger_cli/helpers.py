@@ -1,6 +1,8 @@
 # Copyright (C) 2025 Canonical Ltd.
 """Helpers for the Testflinger CLI."""
 
+import argparse
+import re
 from datetime import datetime
 from os import getenv
 from pathlib import Path
@@ -194,3 +196,40 @@ def format_timestamp(timestamp_str: str) -> str:
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     except (ValueError, AttributeError):
         return timestamp_str
+
+
+def parse_comma_list(choices: tuple | list[str]) -> callable:
+    """Create a comma-separated list parser.
+
+    :param choices: List of valid choices for each item in the
+        comma-separated list.
+    :return: A parser function that accepts comma-separated input and
+        returns a list of validated strings.
+    """
+
+    def _parse_comma_list(arg: str) -> list[str]:
+        value_list = [item.strip() for item in arg.split(",")]
+        for item in value_list:
+            if item not in choices:
+                raise argparse.ArgumentTypeError(
+                    f"invalid choice: '{item}' (choose from "
+                    f"{', '.join(choices)})"
+                )
+        return value_list
+
+    return _parse_comma_list
+
+
+def regex_arg(value):
+    """Compile and validate a regex pattern argument.
+
+    :param value: The regex pattern string to compile
+    :return: Compiled regex pattern
+    :raises ArgumentTypeError: If the regex pattern is invalid
+    """
+    try:
+        return re.compile(value)
+    except re.error as err:
+        raise argparse.ArgumentTypeError(
+            f"Invalid regex '{value}', error: {str(err)}"
+        ) from err
