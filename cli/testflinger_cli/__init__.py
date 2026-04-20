@@ -385,6 +385,11 @@ class TestflingerCli:
             help="Reservation timeout in seconds (default "
             f"{DEFAULT_RESERVE_TIMEOUT})",
         )
+        parser.add_argument(
+            "--ephemeral",
+            action="store_true",
+            help="MAAS ephemeral (in-memory) deployment.",
+        )
 
     def _add_status_args(self, subparsers):
         """Command line arguments for status."""
@@ -1730,10 +1735,22 @@ class TestflingerCli:
             self.do_list_queues()
         )
 
+        # Ephemeral only supported for MAAS deployments via distro argument
+        if self.args.ephemeral and not self.args.distro:
+            sys.exit(
+                "Error: --ephemeral option requires --distro to be specified."
+            )
+
         # Handle distro if provided
         provision_data = {}
         if self.args.distro:
-            provision_data = {"provision_data": {"distro": self.args.distro}}
+            # Only include ephemeral in provision_data if it's set
+            provision_data = {
+                "provision_data": {
+                    "distro": self.args.distro,
+                }
+                | ({"ephemeral": True} if self.args.ephemeral else {})
+            }
         else:
             try:
                 images = self.client.get_images(queue)
